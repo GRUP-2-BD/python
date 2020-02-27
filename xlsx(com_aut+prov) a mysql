@@ -58,7 +58,6 @@ for y in range(7,200):
 
     valorAct = (sheet.cell(row=y,column=3).value).rstrip(" ")
     if valorAct not in dicProv:
-        print("provincia")
         codiIne = sheet.cell(row=y,column=2).value
         idComAut = dicComAut[(sheet.cell(row=y,column=1).value).rstrip(" ")]
 
