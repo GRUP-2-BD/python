@@ -1,0 +1,14 @@
+import zipfile
+import os
+
+dirActual = os.path.dirname(__file__)
+nomFitxerZip = ".zip"
+dirUnzip = os.path.join(os.path.dirname(__file__) , "unzip")
+pathFitxerZip = os.path.join(dirActual,"ZIPs_XLSX")
+
+for r, d, f in os.walk(pathFitxerZip):
+    for file in f:
+        if nomFitxerZip in file:
+            # Extraiem el contingut de pathFitxerZip a dirUnzip
+            with zipfile.ZipFile(os.path.join(r,file), 'r') as zipRef:
+                zipRef.extractall(dirUnzip)
