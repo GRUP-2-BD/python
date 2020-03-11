@@ -1,0 +1,16 @@
+import os
+import openpyxl as xl
+import mysql.connector
+
+#Tractar un fitxer Excel
+dirActual = os.path.dirname(__file__)
+nomFitxerXls = "02_197706_1.xlsx"
+
+pathFitxerXls = os.path.join(dirActual,"unzip",nomFitxerXls)
+
+wb = xl.load_workbook(pathFitxerXls, read_only=True)
+sheet = wb["Municipios"]
+
+taula = tuple(sheet.columns)
+primera_col = taula[0]
+primera_cel = primera_col[0]
