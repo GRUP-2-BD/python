@@ -6,8 +6,10 @@ import datetime
 import re
 
 #Set db info
-cnx = mysql.connector.connect(host='192.168.56.101',user='perepi',password='pastanaga', database='mydb')
-cursor = cnx.cursor()
+
+def iniciarConnexio():
+    cnx = mysql.connector.connect(host='192.168.56.101',user='perepi',password='pastanaga', database='mydb')
+    return(cnx)
 
 #Tractar un fitxer Excel
 dirActual = os.path.dirname(__file__)
@@ -15,8 +17,16 @@ nomFitxerXls = "02_197706_1.xlsx"
 
 pathFitxerXls = os.path.join(dirActual,"unzip",nomFitxerXls)
 
-wb = xl.load_workbook(pathFitxerXls, read_only=True)
+wb = xl.load_workbook(pathFitxerXls)
 sheet = wb["Municipios"]
+
+taula = tuple(sheet.columns)
+primera_col = taula[0]
+primera_cel = primera_col[0]
+
+dicComAut = {}
+dicProv = {}
+dicPartits = {}
 
 """
 fila 7 comencen les dades
@@ -38,6 +48,8 @@ Columnes:
 
 """
 #Netejar la base per si hi ha dades d'anteriors proves.
+'''cnx = iniciarConnexio()
+cursor = cnx.cursor()
 query = """SET FOREIGN_KEY_CHECKS=0;
            TRUNCATE comunitats_autonomes;
            TRUNCATE provincies;
@@ -45,28 +57,44 @@ query = """SET FOREIGN_KEY_CHECKS=0;
 
 cnx.cmd_query_iter(query) #Fer multiples sentencies a la base de dades en una mateixa instruccio.
 cnx.commit()
+cursor.close()
+cnx.close()
+'''
+cnx = iniciarConnexio()
+cursor = cnx.cursor()
 
-dicComAut = {}
-dicProv = {}
 
-for y in range(7,200):
-    valorAct = (sheet.cell(row=y,column=1).value).rstrip(" ")
+
+
+
+for i in range(13,95):
+    nom_llarg = (taula[i])[4].value
+    nom_curt = (taula[i])[5].value
+    query = ("INSERT INTO partits (nom_llarg,nom_curt) VALUES (%s,%s)")
+    cursor.execute(query, (nom_llarg,nom_curt))
+    dicPartits[i] = cursor._last_insert_id
+
+for y in range(6,2000):
+    valorAct = ((taula[0])[y].value).rstrip(" ")
     if valorAct not in dicComAut:
         query = ("INSERT INTO comunitats_autonomes (nom) VALUES (%s)")
         cursor.execute(query, (valorAct,))
         dicComAut[valorAct] = int(cursor._last_insert_id)
+        print("Inserida comunitat autonoma : {}".format(valorAct))
 
-    valorAct = (sheet.cell(row=y,column=3).value).rstrip(" ")
+    valorAct = ((taula[2])[y].value).rstrip(" ")
     if valorAct not in dicProv:
-        codiIne = sheet.cell(row=y,column=2).value
-        idComAut = dicComAut[(sheet.cell(row=y,column=1).value).rstrip(" ")]
+        codiIne = (taula[1])[y].value
+        idComAut = dicComAut[((taula[0])[y].value).rstrip(" ")]
 
         query = ("INSERT INTO provincies (nom,codi_ine,comunitat_aut_id) VALUES (%s,%s,%s)")
         cursor.execute(query, (valorAct,codiIne,idComAut))
         dicProv[valorAct] = int(cursor._last_insert_id)
+        print("Inserida provincia : {}".format(valorAct))
 
 
 
 cnx.commit()
 cursor.close()
 cnx.close()
+
