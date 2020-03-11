@@ -1,17 +1,16 @@
 import os
-import pandas as pd # pip install pandas / pip install xlrd
 import openpyxl as xl
 import mysql.connector
-import datetime
-import re
-
-#Set db info
-
+from datetime import datetime
 def iniciarConnexio():
     cnx = mysql.connector.connect(host='192.168.56.101',user='perepi',password='pastanaga', database='mydb')
     return(cnx)
 
-#Tractar un fitxer Excel
+def netejar():
+    dicComAut.clear()
+    dicPartits.clear()
+    dicProv.clear()
+
 dirActual = os.path.dirname(__file__)
 nomFitxerXls = "02_197706_1.xlsx"
 
@@ -19,7 +18,7 @@ pathFitxerXls = os.path.join(dirActual,"unzip",nomFitxerXls)
 
 wb = xl.load_workbook(pathFitxerXls)
 sheet = wb["Municipios"]
-
+print("{0} Carregant l'arxiu.".format(datetime.now().strftime("%H:%M:%S")))
 taula = tuple(sheet.columns)
 primera_col = taula[0]
 primera_cel = primera_col[0]
@@ -53,20 +52,18 @@ cursor = cnx.cursor()
 query = """SET FOREIGN_KEY_CHECKS=0;
            TRUNCATE comunitats_autonomes;
            TRUNCATE provincies;
+           TRUNCATE partits;
            SET FOREIGN_KEY_CHECKS=1;"""
 
 cnx.cmd_query_iter(query) #Fer multiples sentencies a la base de dades en una mateixa instruccio.
 cnx.commit()
-cursor.close()
-cnx.close()
 '''
+
+print("{0} Conectant a la base de dades".format(datetime.now().strftime("%H:%M:%S")))
 cnx = iniciarConnexio()
 cursor = cnx.cursor()
 
-
-
-
-
+print("{0} Inserint noms de partits".format(datetime.now().strftime("%H:%M:%S")))
 for i in range(13,95):
     nom_llarg = (taula[i])[4].value
     nom_curt = (taula[i])[5].value
@@ -74,7 +71,8 @@ for i in range(13,95):
     cursor.execute(query, (nom_llarg,nom_curt))
     dicPartits[i] = cursor._last_insert_id
 
-for y in range(6,2000):
+print("{0} Inserint com aut i provincies.".format(datetime.now().strftime("%H:%M:%S")))
+for y in range(6,len(taula[0])):
     valorAct = ((taula[0])[y].value).rstrip(" ")
     if valorAct not in dicComAut:
         query = ("INSERT INTO comunitats_autonomes (nom) VALUES (%s)")
@@ -92,9 +90,7 @@ for y in range(6,2000):
         dicProv[valorAct] = int(cursor._last_insert_id)
         print("Inserida provincia : {}".format(valorAct))
 
-
-
+print("{0} Completat.".format(datetime.now().strftime("%H:%M:%S")))
 cnx.commit()
 cursor.close()
 cnx.close()
-
