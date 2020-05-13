@@ -1,96 +1,155 @@
 import os
+import re
 import openpyxl as xl
 import mysql.connector
 from datetime import datetime
+
+def capitText(s):
+    s = s.lower()
+    return re.sub('(?<=^)[a-z]|(?<=\s)[a-z]', '{}', s).format(*map(str.upper, re.findall('(?<=^)[a-z]|(?<=\s)[a-z]', s)))
+
 def iniciarConnexio():
-    cnx = mysql.connector.connect(host='192.168.56.101',user='perepi',password='pastanaga', database='mydb')
-    return(cnx)
+    cnx = mysql.connector.connect(host='192.168.56.101', user='perepi', password='pastanaga', database='Eleccions_Grup2')
+    return cnx
 
 def netejar():
     dicComAut.clear()
     dicPartits.clear()
     dicProv.clear()
 
-dirActual = os.path.dirname(__file__)
-nomFitxerXls = "02_197706_1.xlsx"
+def commit():
+    cnx.commit()
 
-pathFitxerXls = os.path.join(dirActual,"unzip",nomFitxerXls)
+def closeConn():
+    cnx.close()
 
-wb = xl.load_workbook(pathFitxerXls)
-sheet = wb["Municipios"]
-print("{0} Carregant l'arxiu.".format(datetime.now().strftime("%H:%M:%S")))
-taula = tuple(sheet.columns)
-primera_col = taula[0]
-primera_cel = primera_col[0]
-
+fitxers_a_tractar = []
 dicComAut = {}
 dicProv = {}
+dicMunicipi = {}
 dicPartits = {}
 
-"""
-fila 7 comencen les dades
-Columnes:
-   1: Nom de la comunitat
-   2: Codi de Provincia
-   3: Nom de la Provincia
-   4: Codi de Municipi
-   5: Nom de Municipi
-   6: Població
-   7: Número de meses
-   8: Total del cens electoral
-   9: Total de vots
-   10: Vots vàlids
-   11: Vots a candidatures
-   12: Vots en blanc
-   13: Vots nuls
-   14: shee.max_column (partits polítics)
+dirActual = os.path.dirname(__file__)
+nomFitxerZip = ".xlsx"
+pathFitxers = os.path.join(dirActual,"unzip")
 
-"""
-#Netejar la base per si hi ha dades d'anteriors proves.
-'''cnx = iniciarConnexio()
-cursor = cnx.cursor()
-query = """SET FOREIGN_KEY_CHECKS=0;
-           TRUNCATE comunitats_autonomes;
-           TRUNCATE provincies;
-           TRUNCATE partits;
-           SET FOREIGN_KEY_CHECKS=1;"""
+for r, d, f in os.walk(pathFitxers):
+    for file in f:
+        if nomFitxerZip in file:
+            fitxers_a_tractar.append(file)
 
-cnx.cmd_query_iter(query) #Fer multiples sentencies a la base de dades en una mateixa instruccio.
-cnx.commit()
 '''
-
-print("{0} Conectant a la base de dades".format(datetime.now().strftime("%H:%M:%S")))
 cnx = iniciarConnexio()
 cursor = cnx.cursor()
 
-print("{0} Inserint noms de partits".format(datetime.now().strftime("%H:%M:%S")))
-for i in range(13,95):
-    nom_llarg = (taula[i])[4].value
-    nom_curt = (taula[i])[5].value
-    query = ("INSERT INTO partits (nom_llarg,nom_curt) VALUES (%s,%s)")
-    cursor.execute(query, (nom_llarg,nom_curt))
-    dicPartits[i] = cursor._last_insert_id
+cursor.execute("SELECT comunitat_aut_id,nom FROM comunitats_autonomes")
+BddComAut = cursor.fetchall()
 
-print("{0} Inserint com aut i provincies.".format(datetime.now().strftime("%H:%M:%S")))
-for y in range(6,len(taula[0])):
-    valorAct = ((taula[0])[y].value).rstrip(" ")
-    if valorAct not in dicComAut:
-        query = ("INSERT INTO comunitats_autonomes (nom) VALUES (%s)")
-        cursor.execute(query, (valorAct,))
-        dicComAut[valorAct] = int(cursor._last_insert_id)
-        print("Inserida comunitat autonoma : {}".format(valorAct))
+cursor.execute("SELECT provincia_id,nom FROM provincies")
+BddProv = cursor.fetchall()
 
-    valorAct = ((taula[2])[y].value).rstrip(" ")
-    if valorAct not in dicProv:
-        codiIne = (taula[1])[y].value
-        idComAut = dicComAut[((taula[0])[y].value).rstrip(" ")]
+cursor.execute("SELECT municipi_id,nom FROM municipis")
+BddMunicipi = cursor.fetchall()
 
-        query = ("INSERT INTO provincies (nom,codi_ine,comunitat_aut_id) VALUES (%s,%s,%s)")
-        cursor.execute(query, (valorAct,codiIne,idComAut))
-        dicProv[valorAct] = int(cursor._last_insert_id)
-        print("Inserida provincia : {}".format(valorAct))
+cursor.execute("SELECT partit_id,nom_llarg FROM partits")
+BddPartits = cursor.fetchall()
 
-print("{0} Completat.".format(datetime.now().strftime("%H:%M:%S")))
-cnx.commit()
-cursor.close()
-cnx.close()
+commit()
+closeConn()
+
+for x in BddComAut:
+    dicComAut[capitText(x[1])] = x[0]
+for x in BddProv:
+    dicProv[capitText(x[1])] = x[0]
+for x in BddMunicipi:
+    dicMunicipi[capitText(x[1])] = x[0]
+for x in BddPartits:
+    dicPartits[capitText(x[1])] = x[0]
+'''
+dirActual = os.path.dirname(__file__)
+inici = datetime.now()
+for fitxer in fitxers_a_tractar:
+    iniciCicle = datetime.now()
+    print("Tractant fitxer {}".format(fitxer))
+    pathFitxerXls = os.path.join(dirActual, "unzip", fitxer)
+
+    wb = xl.load_workbook(pathFitxerXls)
+    sheet = wb["Municipios"]
+    print("{0} Carregant l'arxiu.".format(datetime.now().strftime("%H:%M:%S")))
+    taula = tuple(sheet.columns)
+
+    nom_eleccions = str((fitxer[:-7])[3:])
+
+    cnx = iniciarConnexio()
+    cursor = cnx.cursor()
+
+    #Inserir eleccio
+    nom_eleccions = nom_eleccions[:4]+"-"+nom_eleccions[-2:]
+    data = nom_eleccions+"-02"
+    query = "INSERT INTO eleccions (nom,data) VALUES (%s,%s)"
+    cursor.execute(query, (nom_eleccions,data))
+    eleccioID = cursor._last_insert_id
+
+    for i in range(13, len(taula)):
+        valorAct = str((taula[i])[4].value)
+        if capitText(valorAct) not in dicPartits:
+            if valorAct == None:
+                break
+            nom_curt = (taula[i])[5].value
+            query = "INSERT INTO partits (nom_llarg,nom_curt) VALUES (%s,%s)"
+            cursor.execute(query, (valorAct, nom_curt))
+            dicPartits[capitText(valorAct)] = cursor._last_insert_id
+
+    for y in range(6, len(taula[0])):
+        #Tractament de Comunitats Autonomes
+        valorAct = (taula[0])[y].value.rstrip(" ")
+        if valorAct not in dicComAut:
+            query = "INSERT INTO comunitats_autonomes (nom) VALUES (%s)"
+            cursor.execute(query, (valorAct,))
+            dicComAut[valorAct] = int(cursor._last_insert_id)
+            #print("Inserida comunitat autonoma : {}".format(valorAct))
+        #Inserir Provincies
+        valorAct = (taula[2])[y].value.rstrip(" ")
+        if valorAct not in dicProv:
+            codiIne = (taula[1])[y].value
+            idComAut = dicComAut[(taula[0])[y].value.rstrip(" ")]
+            query = "INSERT INTO provincies (nom,comunitat_aut_id) VALUES (%s,%s)"
+            cursor.execute(query, (valorAct,idComAut))
+            dicProv[valorAct] = int(cursor._last_insert_id)
+            #print("Inserida provincia : {}".format(valorAct))
+        #Inserir Municipis
+        valorAct = capitText((taula[4])[y].value).rstrip(" ")
+        if valorAct not in dicMunicipi:
+            codiIne = (taula[3])[y].value
+            idProv = dicProv[(taula[2])[y].value.rstrip(" ")]
+            query = "INSERT INTO municipis (nom,provincia_id) VALUES (%s,%s)"
+            cursor.execute(query, (valorAct,idProv))
+            dicMunicipi[valorAct] = int(cursor._last_insert_id)
+            #print("Inserit municipi {}".format(valorAct))
+        #Inserir vots
+        if valorAct in dicMunicipi:
+            municipiID = dicMunicipi[valorAct]
+            poblacio = (taula[5])[y].value
+            nMeses = (taula[6])[y].value
+            totCens = (taula[7])[y].value
+            totVotants = (taula[8])[y].value
+            votsValids = (taula[9])[y].value
+            votsCandidatures = (taula[10])[y].value
+            votsBlanc = (taula[11])[y].value
+            votsNuls = (taula[12])[y].value
+            query = "INSERT INTO eleccions_municipis(eleccio_id, municipi_id, num_meses, poblacio, cens, vots_emesos, vots_valids, vots_candidatures, vots_blanc, vots_nuls) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+            cursor.execute(query,(eleccioID,municipiID,nMeses,poblacio,totCens,totVotants,votsValids,votsCandidatures,votsBlanc,votsNuls))
+        #Inserir vots per partit en x eleccio
+        for col in range(13,len(taula)):
+            if (taula[col])[4].value == None:
+                break
+            nomPartit = capitText(str((taula[col])[4].value))
+            partitID = dicPartits[nomPartit]
+            votsPartit = int((taula[col])[y].value)
+            query = "INSERT INTO eleccions_municipis_partits(municipi_id,eleccio_id,partit_id,vots) VALUES(%s,%s,%s,%s)"
+            cursor.execute(query,(municipiID,eleccioID,partitID,votsPartit))
+        #print("Fila {} de {} completada.".format(y,len(taula[0])))
+    print("{} Completat en {} segons.".format(datetime.now().strftime("%H:%M:%S"),(datetime.now()-iniciCicle).seconds))
+    commit()
+    closeConn()
+print("{} Completats tots els fitxers en {} segons.".format(datetime.now().strftime("%H:%M:%S"),(datetime.now()-inici).seconds))
